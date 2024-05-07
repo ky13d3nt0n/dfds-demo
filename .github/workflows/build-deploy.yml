@@ -1,0 +1,84 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+# Static Site Deploy
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+---
+name: Static Site Deploy
+run-name: ${{ github.event.inputs.environment }} Deploy - ${{ github.event.inputs.version }}
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+# On
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The branch, tag or SHA to checkout'
+        required: true
+      environment:
+        type: environment
+        required: true
+        description: 'environment to run'
+        default: QA
+      node-environment:
+        type: choice
+        required: false
+        description: 'node environment to build'
+        options:
+          - development
+          - production
+        default: development
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+# Jobs
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+jobs:
+  deploy:
+    name: 'Deploy to ${{ github.event.inputs.environment }} (${{ github.event.inputs.version }})'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - run: |
+          echo "BASE_PATH=/frontier-com-marketing-assets" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_ENVIRONMENT=${{ github.event.inputs.node-environment }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_IMAGE_PATH=${{ secrets.IMAGE_PATH }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_RELEASE_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_PS_URL=${{ secrets.PREDICTIVE_SEARCH_URL }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${{ secrets.RECAPTCHA_SITE_KEY }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_WP_ENV=${{ vars.WP_ENV }}" >> $GITHUB_ENV
+
+      # Checkout Code
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.version }}
+
+      # Install dependencies and restructure repo
+      - uses: ./.github/actions/next-build
+        with:
+          rd_github_package_token: ${{ secrets.RD_GITHUB_PACKAGE_TOKEN }}
+
+      # Deploy to server
+      - uses: ./.github/actions/blob-deploy
+        with:
+          azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          azure_bucket: '${{ secrets.STORAGE_ACCOUNT }}'
+
+      # Send deployment notification to Slack
+      - name: Send custom JSON data to Slack workflow
+        uses: slackapi/slack-github-action@v1.18.0
+        with:
+          payload: |
+            {
+              "repository": "${{ github.repository }}",
+              "version": "${{ github.event.inputs.version }}",
+              "environment": "${{ github.event.inputs.environment }}",
+              "url": "${{ secrets.DOMAIN }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: '${{ secrets.SLACK_WEBHOOK_URL }}'

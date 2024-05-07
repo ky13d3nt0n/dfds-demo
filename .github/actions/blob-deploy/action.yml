@@ -1,0 +1,74 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+# Azure Static Site Deploy
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+---
+name: 'Azure Static Site Deploy'
+description: 'Deploy Static Site to Azure Blob Storage $web'
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+# Inputs
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+inputs:
+  azure_credentials:
+    description: 'Credentials object for azure cli'
+    required: true
+  azure_bucket:
+    description: 'Azure bucket name'
+    required: true
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+# Outputs
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+outputs:
+  site-url:
+    description: 'Site URL'
+    value: ${{ steps.deploy.outputs.site-url }}
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+# Runs
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+runs:
+  using: 'composite'
+  steps:
+    - uses: azure/login@v1
+      with:
+        creds: ${{ inputs.azure_credentials }}
+
+    - id: ip
+      run: |
+        ip=`dig +short myip.opendns.com @resolver1.opendns.com`
+        echo "::set-output name=address::$ip"
+      shell: bash
+
+    - run: |
+        az storage account network-rule add --account-name "${{ inputs.azure_bucket }}" --ip-address "${{ steps.ip.outputs.address }}"
+        sleep 30
+      shell: bash
+
+    - id: deploy
+      run: |
+        date=`date -u '+%Y-%m-%dT%H:%MZ'`
+        az storage blob upload-batch --account-name "${{ inputs.azure_bucket }}" --destination "\$web" --source ./out --auth-mode key --overwrite=True
+        az storage blob delete-batch --account-name "${{ inputs.azure_bucket }}" --source "\$web" --if-unmodified-since "$date" --pattern "*" --auth-mode key
+        baseUrl=`az storage account show --name ${{ inputs.azure_bucket }} --query "primaryEndpoints.web" | tr -d \"`
+        url=${baseUrl}
+        echo "::set-output name=site-url::$url"
+        echo "::notice title=site url::$url"
+      shell: bash
+
+    - run: |
+        az storage account network-rule remove --account-name "${{ inputs.azure_bucket }}" --ip-address "${{ steps.ip.outputs.address }}"
+      shell: bash
+      if: always()
+
+    - run: az logout
+      shell: bash
+      if: always()

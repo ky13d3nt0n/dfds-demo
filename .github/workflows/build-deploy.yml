@@ -21,8 +21,8 @@ on:
       environment:
         type: environment
         required: true
-        description: 'environment to run'
-        default: QA
+        description: 'github environment to run'
+        default: staging
       node-environment:
         type: choice
         required: false
@@ -45,13 +45,9 @@ jobs:
       name: ${{ github.event.inputs.environment }}
     steps:
       - run: |
-          echo "BASE_PATH=/frontier-com-marketing-assets" >> $GITHUB_ENV
           echo "NEXT_PUBLIC_ENVIRONMENT=${{ github.event.inputs.node-environment }}" >> $GITHUB_ENV
           echo "NEXT_PUBLIC_IMAGE_PATH=${{ secrets.IMAGE_PATH }}" >> $GITHUB_ENV
           echo "NEXT_PUBLIC_RELEASE_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_PS_URL=${{ secrets.PREDICTIVE_SEARCH_URL }}" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${{ secrets.RECAPTCHA_SITE_KEY }}" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_WP_ENV=${{ vars.WP_ENV }}" >> $GITHUB_ENV
 
       # Checkout Code
       - uses: actions/checkout@v3

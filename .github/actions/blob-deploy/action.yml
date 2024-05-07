@@ -4,7 +4,7 @@
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ---
-name: 'Azure Static Site Deploy'
+name: 'Vercel Static Site Deploy'
 description: 'Deploy Static Site to Azure Blob Storage $web'
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
